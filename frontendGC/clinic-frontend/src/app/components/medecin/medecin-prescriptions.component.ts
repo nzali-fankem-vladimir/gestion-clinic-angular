@@ -150,55 +150,42 @@ import { Prescription, PrescriptionRequest } from '../../models/prescription.mod
             </div>
           </div>
 
-          <!-- Liste des prescriptions compacte -->
+          <!-- Liste des prescriptions simplifiée -->
           <div class="prescriptions-list">
-            <div *ngFor="let group of getGroupedPrescriptions()" class="prescription-item">
-              <div class="prescription-header" (click)="toggleExpand(group)">
+            <div *ngFor="let prescription of prescriptions" class="prescription-card">
+              <div class="prescription-header">
                 <div class="header-info">
-                  <h4>👤 {{ group.patientNom }}</h4>
-                  <p>👨⚕️ Dr. {{ group.medecinNom }}</p>
-                  <span class="date-badge">📅 {{ group.dateConsultation | date:'dd/MM/yyyy' }}</span>
+                  <h4>👤 {{ prescription.patientPrenom }} {{ prescription.patientNom }}</h4>
+                  <p>📅 {{ prescription.dateCreation | date:'dd/MM/yyyy HH:mm' }}</p>
                 </div>
-                <div class="expand-arrow" [class.expanded]="group.expanded">▶</div>
+                <div class="prescription-actions">
+                  <button (click)="downloadPdf(prescription)" class="btn-pdf">📄 PDF</button>
+                  <button (click)="deletePrescription(prescription)" class="btn-delete">🗑️</button>
+                </div>
               </div>
               
-              <div class="prescription-details" *ngIf="group.expanded">
-                <div class="details-content">
-                  <div class="consultation-info">
-                    <div class="info-item">
-                      <strong>📝 Motif:</strong>
-                      <span>{{ group.motifConsultation || 'Non spécifié' }}</span>
-                    </div>
-                    <div class="info-item">
-                      <strong>🕰️ Heure:</strong>
-                      <span>{{ group.dateConsultation | date:'HH:mm' }}</span>
-                    </div>
+              <div class="prescription-content">
+                <div class="medicament-info">
+                  <div class="info-row">
+                    <strong>💊 Médicament:</strong>
+                    <span>{{ prescription.medicament }}</span>
                   </div>
-                  
-                  <div class="medicaments-table">
-                    <div class="table-header">
-                      <div>Médicament</div>
-                      <div>Dosage</div>
-                      <div>Posologie</div>
-                    </div>
-                    <div *ngFor="let prescription of group.prescriptions" class="table-row">
-                      <div>{{ prescription.medicament }}</div>
-                      <div>{{ prescription.dosage }}</div>
-                      <div>{{ prescription.posologie }}</div>
-                    </div>
+                  <div class="info-row">
+                    <strong>📏 Dosage:</strong>
+                    <span>{{ prescription.dosage }}</span>
                   </div>
-                  
-                  <div *ngIf="group.hospitalisationNecessaire" class="alert-info">
-                    <strong>🏥 Hospitalisation nécessaire</strong>
+                  <div class="info-row">
+                    <strong>⏰ Posologie:</strong>
+                    <span>{{ prescription.posologie }}</span>
                   </div>
-                  <div *ngIf="group.examensNecessaires" class="alert-info">
-                    <strong>🔬 Examens:</strong> {{ group.examensNecessaires }}
-                  </div>
-                  
-                  <div class="actions">
-                    <button (click)="downloadGroupPdf(group)" class="btn-pdf">📄 PDF</button>
-                    <button (click)="deleteGroup(group)" class="btn-delete">🗑️ Supprimer</button>
-                  </div>
+                </div>
+                
+                <div *ngIf="prescription.hospitalisationNecessaire" class="alert-warning">
+                  🏥 <strong>Hospitalisation nécessaire</strong>
+                </div>
+                
+                <div *ngIf="prescription.examensNecessaires" class="alert-info">
+                  <strong>🔬 Examens:</strong> {{ prescription.examensNecessaires }}
                 </div>
               </div>
             </div>
@@ -294,26 +281,24 @@ import { Prescription, PrescriptionRequest } from '../../models/prescription.mod
     .prescription-section strong { color: #333; display: block; margin-bottom: 0.25rem; }
     .prescription-section p { margin: 0; color: #666; background: #f8f9fa; padding: 0.5rem; border-radius: 4px; }
     .hospitalisation-required { background: #fff3cd !important; color: #856404 !important; font-weight: bold; }
-    .prescriptions-list { display: flex; flex-direction: column; gap: 1rem; }
-    .prescription-item { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #28a745; }
-    .prescription-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; cursor: pointer; transition: background 0.3s; user-select: none; position: relative; z-index: 1; }
-    .prescription-header:hover { background: #f8f9fa; }
-    .prescription-header:active { background: #e9ecef; }
-    .header-info h4 { margin: 0 0 0.25rem 0; color: #333; }
-    .header-info p { margin: 0 0 0.25rem 0; color: #666; font-size: 0.9rem; }
-    .date-badge { background: #e8f5e8; color: #28a745; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
-    .expand-arrow { font-size: 1.2rem; color: #28a745; transition: transform 0.3s; padding: 0.5rem; margin: -0.5rem; cursor: pointer; }
-    .expand-arrow.expanded { transform: rotate(90deg); }
-    .expand-arrow:hover { background: rgba(40, 167, 69, 0.1); border-radius: 50%; }
-    .prescription-details { background: #f8f9fa; }
-    .details-content { padding: 1rem; border-top: 1px solid #eee; }
+    .prescriptions-list { display: flex; flex-direction: column; gap: 1.5rem; }
+    .prescription-card { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 4px solid #28a745; overflow: hidden; }
+    .prescription-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; background: #f8f9fa; border-bottom: 1px solid #eee; }
+    .header-info h4 { margin: 0 0 0.5rem 0; color: #333; font-size: 1.1rem; }
+    .header-info p { margin: 0; color: #666; font-size: 0.9rem; }
+    .prescription-content { padding: 1.5rem; }
+    .medicament-info { margin-bottom: 1rem; }
+    .info-row { display: flex; gap: 1rem; margin-bottom: 0.75rem; align-items: center; }
+    .info-row strong { min-width: 120px; color: #333; font-size: 0.9rem; }
+    .info-row span { color: #666; background: #f8f9fa; padding: 0.5rem; border-radius: 6px; flex: 1; }
     .consultation-info { background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
     .info-item { display: flex; gap: 1rem; margin-bottom: 0.5rem; }
     .info-item strong { min-width: 100px; color: #333; }
     .medicaments-table { border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
     .table-header { display: grid; grid-template-columns: 2fr 1fr 2fr; background: #f8f9fa; padding: 0.75rem; font-weight: bold; }
     .table-row { display: grid; grid-template-columns: 2fr 1fr 2fr; padding: 0.75rem; border-top: 1px solid #eee; }
-    .alert-info { background: #fff3cd; color: #856404; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; }
+    .alert-info { background: #d1ecf1; color: #0c5460; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #17a2b8; }
+    .alert-warning { background: #fff3cd; color: #856404; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #ffc107; font-weight: 600; }
     .actions { display: flex; gap: 0.5rem; }
     .btn-pdf, .btn-delete { 
       padding: 0.75rem 1.25rem; 
@@ -559,60 +544,7 @@ export class MedecinPrescriptionsComponent implements OnInit {
     }
   }
 
-  getGroupedPrescriptions(): any[] {
-    if (!this.prescriptions || this.prescriptions.length === 0) {
-      return [];
-    }
-    
-    const groups = new Map();
-    this.prescriptions.forEach(prescription => {
-      try {
-        const patientNom = prescription.patientNom || 'Inconnu';
-        const dateCreation = prescription.dateCreation || new Date().toISOString();
-        const key = `${patientNom}_${dateCreation}`;
-        
-        if (!groups.has(key)) {
-          const group = {
-            patientNom: `${prescription.patientPrenom || ''} ${patientNom}`.trim(),
-            medecinNom: `${prescription.medecinPrenom || ''} ${prescription.medecinNom || ''}`.trim(),
-            dateConsultation: dateCreation,
-            motifConsultation: prescription.motifConsultation || '',
-            prescriptions: [],
-            hospitalisationNecessaire: prescription.hospitalisationNecessaire || false,
-            examensNecessaires: prescription.examensNecessaires || '',
-            expanded: false
-          };
-          groups.set(key, group);
-        }
-        groups.get(key)!.prescriptions.push(prescription);
-      } catch (error) {
-        console.error('Erreur lors du groupement:', error, prescription);
-      }
-    });
-    
-    return Array.from(groups.values());
-  }
 
-  toggleExpand = (group: any): void => {
-    group.expanded = !group.expanded;
-  }
-
-  downloadGroupPdf(group: any): void {
-    if (group.prescriptions.length > 0) {
-      this.downloadPdf(group.prescriptions[0]);
-    }
-  }
-
-  deleteGroup(group: any): void {
-    if (confirm('Supprimer toutes les prescriptions de ce groupe ?')) {
-      group.prescriptions.forEach((prescription: any) => {
-        if (prescription.id) {
-          this.prescriptionService.deletePrescription(prescription.id).subscribe();
-        }
-      });
-      this.loadPrescriptions();
-    }
-  }
 
   logout(): void {
     this.authService.logout().subscribe({

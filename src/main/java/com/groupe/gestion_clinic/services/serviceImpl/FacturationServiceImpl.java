@@ -93,8 +93,15 @@ public class FacturationServiceImpl implements FacturationService {
     
     @Override
     public byte[] generateFacturePdf(Integer factureId) {
+        // Charger la facture avec ses prescriptions et relations
         Facture facture = factureRepository.findById(factureId)
                 .orElseThrow(() -> new RuntimeException("Facture non trouvée"));
+        
+        System.out.println("Génération PDF pour facture ID: " + factureId);
+        
+        // Charger les prescriptions associées à cette facture
+        List<Prescription> prescriptions = prescriptionRepository.findByFactureId(factureId);
+        System.out.println("Nombre de prescriptions trouvées: " + prescriptions.size());
         
         try (org.apache.pdfbox.pdmodel.PDDocument document = new org.apache.pdfbox.pdmodel.PDDocument()) {
             org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
@@ -126,14 +133,18 @@ public class FacturationServiceImpl implements FacturationService {
                 String medecinNom = "Médecin inconnu";
                 String datePrescription = "Date inconnue";
                 
-                if (!facture.getPrescription().isEmpty()) {
-                    var prescription = facture.getPrescription().get(0);
+                if (!prescriptions.isEmpty()) {
+                    var prescription = prescriptions.get(0);
+                    System.out.println("Prescription trouvée, ID: " + prescription.getId());
+                    
                     if (prescription.getRendezvous() != null) {
                         var rdv = prescription.getRendezvous();
+                        System.out.println("RDV trouvé, ID: " + rdv.getId());
                         
                         // Récupération patient
                         if (rdv.getPatient() != null) {
                             var patient = rdv.getPatient();
+                            System.out.println("Patient trouvé: " + patient.getPrenom() + " " + patient.getNom());
                             patientNom = (patient.getPrenom() != null ? patient.getPrenom() : "") + " " + 
                                         (patient.getNom() != null ? patient.getNom() : "");
                             patientNom = patientNom.trim();
@@ -143,17 +154,22 @@ public class FacturationServiceImpl implements FacturationService {
                         // Récupération médecin
                         if (rdv.getMedecin() != null) {
                             var medecin = rdv.getMedecin();
+                            System.out.println("Médecin trouvé: " + medecin.getPrenom() + " " + medecin.getNom());
                             medecinNom = "Dr. " + (medecin.getPrenom() != null ? medecin.getPrenom() : "") + " " + 
                                         (medecin.getNom() != null ? medecin.getNom() : "");
                             medecinNom = medecinNom.trim();
-                            if (medecinNom.equals("Dr.")) medecinNom = "Médecin inconnu";
+                            if (medecinNom.equals("Dr. ")) medecinNom = "Médecin inconnu";
                         }
                         
                         // Date prescription
                         if (prescription.getCreatedAt() != null) {
                             datePrescription = prescription.getCreatedAt().toLocalDate().toString();
                         }
+                    } else {
+                        System.out.println("Aucun RDV associé à la prescription");
                     }
+                } else {
+                    System.out.println("Aucune prescription associée à la facture");
                 }
                 
                 // Affichage des informations

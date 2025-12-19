@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { WebSocketService, Notification as WSNotification } from './websocket.service';
+import { SilentNotificationService } from './silent-notification.service';
 
 export interface Notification {
   id: string;
@@ -19,8 +20,13 @@ export interface Notification {
 export class NotificationService {
   private notifications = new BehaviorSubject<Notification[]>([]);
   public notifications$ = this.notifications.asObservable();
+  private maxNotifications = 5; // Limite le nombre de notifications affichées
+  private errorThrottle = new Map<string, number>(); // Throttle pour les erreurs répétitives
 
-  constructor(private webSocketService: WebSocketService) {
+  constructor(
+    private webSocketService: WebSocketService,
+    private silentNotificationService: SilentNotificationService
+  ) {
     this.loadNotificationsFromStorage();
     this.webSocketService.getNotifications().subscribe(wsNotifications => {
       wsNotifications.forEach(wsNotif => {
@@ -30,6 +36,11 @@ export class NotificationService {
   }
 
   addNotification(type: Notification['type'], title: string, message: string, rdvId?: number, objMessage?: string): void {
+    // Filtrer les erreurs répétitives
+    if (type === 'error' && this.shouldThrottleError(message)) {
+      return;
+    }
+
     const notification: Notification = {
       id: Date.now().toString(),
       type,
@@ -42,14 +53,14 @@ export class NotificationService {
     };
 
     const current = this.notifications.value;
-    const updated = [notification, ...current];
+    // Limiter le nombre de notifications et éviter les doublons
+    const filtered = current.filter(n => n.message !== message).slice(0, this.maxNotifications - 1);
+    const updated = [notification, ...filtered];
     this.notifications.next(updated);
     this.saveNotificationsToStorage(updated);
 
-    // Auto-remove after 5 seconds for success/info
-    if (type === 'success' || type === 'info') {
-      setTimeout(() => this.removeNotification(notification.id), 5000);
-    }
+    // Ne pas supprimer automatiquement les notifications pour qu'elles restent dans le panel
+    // Les utilisateurs peuvent les supprimer manuellement
   }
 
   removeNotification(id: string): void {
@@ -75,6 +86,11 @@ export class NotificationService {
   }
 
   error(title: string, message: string): void {
+    // Filtrer les erreurs non critiques pour éviter l'encombrement
+    if (this.isNonCriticalError(message)) {
+      console.warn(`[${title}] ${message}`);
+      return;
+    }
     this.addNotification('error', title, message);
   }
 
@@ -121,18 +137,9 @@ export class NotificationService {
   }
 
   private loadNotificationsFromStorage(): void {
-    const stored = localStorage.getItem('notifications');
-    if (stored) {
-      try {
-        const notifications = JSON.parse(stored).map((n: any) => ({
-          ...n,
-          timestamp: new Date(n.timestamp)
-        }));
-        this.notifications.next(notifications);
-      } catch (e) {
-        console.error('Erreur lors du chargement des notifications:', e);
-      }
-    }
+    // Vider les anciennes notifications au démarrage
+    localStorage.removeItem('notifications');
+    this.notifications.next([]);
   }
 
   filterByType(type?: string): Notification[] {
@@ -150,5 +157,58 @@ export class NotificationService {
 
   disconnectWebSocket(): void {
     this.webSocketService.disconnect();
+  }
+
+  private shouldThrottleError(message: string): boolean {
+    const now = Date.now();
+    const lastShown = this.errorThrottle.get(message) || 0;
+    const throttleTime = 30000; // 30 secondes
+    
+    if (now - lastShown < throttleTime) {
+      return true;
+    }
+    
+    this.errorThrottle.set(message, now);
+    return false;
+  }
+
+  private getAutoRemoveDelay(type: Notification['type']): number {
+    // Retourner 0 pour désactiver l'auto-suppression
+    return 0;
+  }
+
+  private isNonCriticalError(message: string): boolean {
+    const nonCriticalPatterns = [
+      'Impossible de charger les statistiques',
+      'Aucun rendez-vous récent trouvé',
+      'Erreur chargement revenus',
+      'Données non disponibles',
+      'Connexion temporairement indisponible',
+      'Erreur chargement stats',
+      'Erreur chargement RDV récents',
+      'Erreur chargement factures'
+    ];
+    
+    const isNonCritical = nonCriticalPatterns.some(pattern => 
+      message.toLowerCase().includes(pattern.toLowerCase())
+    );
+    
+    if (isNonCritical) {
+      // Envoyer vers les notifications silencieuses
+      this.silentNotificationService.addSilentNotification(message, 'warning');
+    }
+    
+    return isNonCritical;
+  }
+
+  // Méthode pour les erreurs critiques uniquement
+  criticalError(title: string, message: string): void {
+    this.addNotification('error', title, message);
+  }
+
+  // Méthode pour les popups temporaires (déconnexion, etc.)
+  showPopup(title: string, message: string): void {
+    // Cette méthode sera utilisée pour déclencher des popups sans les ajouter aux notifications
+    // Les composants peuvent s'abonner à un observable spécifique pour les popups
   }
 }

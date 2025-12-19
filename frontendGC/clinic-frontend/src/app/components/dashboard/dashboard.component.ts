@@ -6,19 +6,20 @@ import { DashboardService, DashboardStats } from '../../services/dashboard.servi
 import { NotificationService } from '../../services/notification.service';
 import { SearchService, SearchResult } from '../../services/search.service';
 import { NotificationsComponent } from '../notifications/notifications.component';
-import { NotificationToastComponent } from '../shared/notification-toast.component';
+
 import { ChatIntegrationComponent } from '../shared/chat-integration.component';
+import { SilentNotificationComponent } from '../shared/silent-notification.component';
+import { LogoutPopupComponent } from '../shared/logout-popup.component';
 import { FormsModule } from '@angular/forms';
 import { User } from '../../models/auth.model';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, NotificationsComponent, NotificationToastComponent, ChatIntegrationComponent, FormsModule],
+  imports: [CommonModule, RouterModule, NotificationsComponent, ChatIntegrationComponent, SilentNotificationComponent, LogoutPopupComponent, FormsModule],
   template: `
     <div class="dashboard-container">
-      <app-notifications></app-notifications>
-      <app-notification-toast></app-notification-toast>
+      <app-notifications [isVisible]="showNotifications" (closed)="showNotifications = false"></app-notifications>
       <nav class="navbar">
         <div class="nav-brand">
           <h1>Gestion Clinique</h1>
@@ -193,6 +194,16 @@ import { User } from '../../models/auth.model';
       
       <!-- Chat Integration -->
       <app-chat-integration></app-chat-integration>
+      
+      <!-- Silent Notifications -->
+      <app-silent-notification></app-silent-notification>
+      
+      <app-logout-popup
+        [isVisible]="showLogoutPopup"
+        [title]="logoutPopupTitle"
+        [message]="logoutPopupMessage"
+        (closed)="showLogoutPopup = false">
+      </app-logout-popup>
       
       <!-- Modal Factures -->
       <div *ngIf="showFacturesModal" class="factures-modal">
@@ -708,7 +719,8 @@ export class DashboardComponent implements OnInit {
   recentRendezVous: any[] = [];
   searchQuery = '';
   searchResults: SearchResult[] = [];
-  notificationCount = 3;
+  notificationCount = 0;
+  showNotifications = false;
   selectedYear = 2025;
   selectedMonth = new Date().getMonth() + 1;
   revenuAnnuel = 0;
@@ -731,6 +743,9 @@ export class DashboardComponent implements OnInit {
   factures: any[] = [];
   filteredFactures: any[] = [];
   selectedFacture: any = null;
+  showLogoutPopup = false;
+  logoutPopupTitle = '';
+  logoutPopupMessage = '';
 
   constructor(
     private authService: AuthService,
@@ -749,6 +764,8 @@ export class DashboardComponent implements OnInit {
           this.loadRevenue();
           this.loadRevenuMensuel();
         }
+        // Ajouter des notifications de test
+        this.addTestNotifications();
       }
     });
     this.loadDashboardData();
@@ -759,10 +776,9 @@ export class DashboardComponent implements OnInit {
       next: stats => {
         console.log('Statistiques reçues:', stats);
         this.stats = stats;
-        this.notificationService.success('Dashboard', 'Données chargées avec succès');
       },
       error: (error) => {
-        console.error('Erreur chargement stats:', error);
+        console.warn('Erreur chargement stats:', error);
         this.stats = {
           totalPatients: 0,
           totalMedecins: 0,
@@ -770,15 +786,14 @@ export class DashboardComponent implements OnInit {
           rendezVousAujourdhui: 0,
           rendezVousEnAttente: 0
         };
-        this.notificationService.warning('Dashboard', 'Impossible de charger les statistiques');
       }
     });
 
     this.dashboardService.getRecentRendezVous().subscribe({
       next: rdv => this.recentRendezVous = rdv,
-      error: () => {
+      error: (error) => {
+        console.warn('Erreur chargement RDV récents:', error);
         this.recentRendezVous = [];
-        this.notificationService.info('Dashboard', 'Aucun rendez-vous récent trouvé');
       }
     });
   }
@@ -787,8 +802,12 @@ export class DashboardComponent implements OnInit {
     this.notificationService.disconnectWebSocket();
     this.authService.logout().subscribe({
       next: () => {
-        this.notificationService.success('Déconnexion', 'Vous avez été déconnecté avec succès');
-        this.router.navigate(['/login']);
+        this.showLogoutPopup = true;
+        this.logoutPopupTitle = 'Déconnexion';
+        this.logoutPopupMessage = 'Vous avez été déconnecté avec succès';
+        setTimeout(() => {
+          this.router.navigate(['/login']);
+        }, 2000);
       },
       error: () => {
         localStorage.removeItem('token');
@@ -858,8 +877,19 @@ export class DashboardComponent implements OnInit {
   }
 
   toggleNotifications(): void {
-    this.notificationService.info('Notifications', 'Aucune nouvelle notification');
-    this.notificationCount = 0;
+    this.showNotifications = !this.showNotifications;
+    // Marquer les notifications comme lues quand on ouvre le panel
+    if (this.showNotifications) {
+      setTimeout(() => {
+        this.notificationService.notifications$.subscribe(notifications => {
+          notifications.forEach(n => {
+            if (!n.read) {
+              this.notificationService.markAsRead(n.id);
+            }
+          });
+        });
+      }, 1000);
+    }
   }
 
   showQuickActions(): void {
@@ -888,7 +918,8 @@ export class DashboardComponent implements OnInit {
       next: (data) => {
         this.revenuAnnuel = data.revenuAnnuel || 0;
       },
-      error: () => {
+      error: (error) => {
+        console.warn('Erreur chargement revenus annuels:', error);
         this.revenuAnnuel = 0;
       }
     });
@@ -899,7 +930,8 @@ export class DashboardComponent implements OnInit {
       next: (data) => {
         this.revenuMensuel = data.revenuMensuel || 0;
       },
-      error: () => {
+      error: (error) => {
+        console.warn('Erreur chargement revenus mensuels:', error);
         this.revenuMensuel = 0;
       }
     });
@@ -930,7 +962,8 @@ export class DashboardComponent implements OnInit {
         this.factures = factures.filter(f => new Date(f.dateCreation).getFullYear() === this.selectedYear);
         this.filteredFactures = this.factures;
       },
-      error: () => {
+      error: (error) => {
+        console.warn('Erreur chargement factures:', error);
         this.factures = [];
         this.filteredFactures = [];
       }
@@ -971,5 +1004,12 @@ export class DashboardComponent implements OnInit {
 
   canAccessUsers(): boolean {
     return this.currentUser?.role === 'ADMIN';
+  }
+
+  addTestNotifications(): void {
+    // S'abonner aux notifications pour mettre à jour le compteur
+    this.notificationService.notifications$.subscribe(notifications => {
+      this.notificationCount = notifications.filter(n => !n.read).length;
+    });
   }
 }

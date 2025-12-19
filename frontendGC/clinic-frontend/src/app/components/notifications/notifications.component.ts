@@ -1,4 +1,4 @@
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -174,6 +174,7 @@ import { NotificationService, Notification } from '../../services/notification.s
 })
 export class NotificationsComponent implements OnInit {
   @Input() isVisible = false;
+  @Output() closed = new EventEmitter<void>();
   notifications: Notification[] = [];
   filteredNotifications: Notification[] = [];
   filterType = '';
@@ -225,6 +226,7 @@ export class NotificationsComponent implements OnInit {
 
   closeNotifications(): void {
     this.isVisible = false;
+    this.closed.emit();
   }
 
   getIcon(type: string): string {

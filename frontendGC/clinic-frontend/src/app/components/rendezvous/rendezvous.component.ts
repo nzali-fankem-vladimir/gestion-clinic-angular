@@ -9,11 +9,12 @@ import { NotificationService } from '../../services/notification.service';
 import { RendezVous, RendezVousRequest, StatutRendezVous } from '../../models/rendezvous.model';
 import { Patient } from '../../models/patient.model';
 import { Medecin } from '../../models/medecin.model';
+import { RdvSuccessModalComponent } from '../shared/rdv-success-modal.component';
 
 @Component({
   selector: 'app-rendezvous',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, RdvSuccessModalComponent],
   template: `
     <div class="layout-container">
       <nav class="navbar">
@@ -171,6 +172,12 @@ import { Medecin } from '../../models/medecin.model';
           © kfokam48 2025 - Gestion Clinique
         </div>
       </footer>
+      
+      <app-rdv-success-modal
+        [isVisible]="showSuccessModal"
+        [rdvDetails]="successRdvDetails"
+        (closed)="closeSuccessModal()">
+      </app-rdv-success-modal>
     </div>
   `,
   styles: [`
@@ -234,6 +241,8 @@ export class RendezVousComponent implements OnInit {
   statusFilter = '';
   dateFilter = '';
   medecinFilter = '';
+  showSuccessModal = false;
+  successRdvDetails: any = null;
 
   constructor(
     private rendezVousService: RendezVousService,
@@ -330,9 +339,10 @@ export class RendezVousComponent implements OnInit {
       this.rendezVousService.createRendezVous(this.currentRendezVous).subscribe({
         next: (response) => {
           console.log('Create response:', response);
+          this.showSuccessModal = true;
+          this.successRdvDetails = this.buildRdvDetails(response);
           this.loadRendezVous();
           this.cancelEdit();
-          this.notificationService.success('Succès', 'Rendez-vous créé avec succès');
         },
         error: (error) => {
           console.error('Create error:', error);
@@ -424,5 +434,27 @@ export class RendezVousComponent implements OnInit {
     const now = new Date();
     const diffHours = (rdvDate.getTime() - now.getTime()) / (1000 * 60 * 60);
     return diffHours >= 24;
+  }
+
+  buildRdvDetails(rdv: any): any {
+    const patientId = Number(this.currentRendezVous.patientId);
+    const medecinId = Number(this.currentRendezVous.medecinId);
+    
+    const patient = this.patients.find(p => p.id === patientId);
+    const medecin = this.medecins.find(m => m.id === medecinId);
+    const dateTime = new Date(this.currentRendezVous.dateHeureDebut);
+    
+    return {
+      patientNom: patient ? `${patient.prenom} ${patient.nom}` : 'N/A',
+      medecinNom: medecin ? `Dr. ${medecin.prenom} ${medecin.nom}` : 'N/A',
+      date: dateTime.toLocaleDateString('fr-FR'),
+      heure: dateTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      motif: this.currentRendezVous.motif
+    };
+  }
+
+  closeSuccessModal(): void {
+    this.showSuccessModal = false;
+    this.successRdvDetails = null;
   }
 }

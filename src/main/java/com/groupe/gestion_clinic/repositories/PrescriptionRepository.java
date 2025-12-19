@@ -23,4 +23,11 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Inte
     org.springframework.data.domain.Page<Prescription> findByRendezvousMedecinIdOrderByCreatedAtDesc(Integer medecinId, org.springframework.data.domain.Pageable pageable);
     
     List<Prescription> findByRendezvousPatientIdOrderByCreatedAtDesc(Integer patientId);
+    
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Prescription p " +
+            "LEFT JOIN FETCH p.rendezvous r " +
+            "LEFT JOIN FETCH r.patient " +
+            "LEFT JOIN FETCH r.medecin " +
+            "WHERE p.facture.id = :factureId")
+    List<Prescription> findByFactureId(Integer factureId);
 }

@@ -8,19 +8,20 @@ import { NotificationService } from '../../services/notification.service';
 import { User } from '../../models/auth.model';
 import { ChatService } from '../../services/chat.service';
 import { NotificationsComponent } from '../notifications/notifications.component';
-import { NotificationToastComponent } from '../shared/notification-toast.component';
+
 import { ProfileModalComponent } from '../shared/profile-modal.component';
 import { ChatComponent } from '../shared/chat.component';
 import { ChatContactsComponent } from '../shared/chat-contacts.component';
+import { SilentNotificationComponent } from '../shared/silent-notification.component';
+import { LogoutPopupComponent } from '../shared/logout-popup.component';
 
 @Component({
   selector: 'app-medecin-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, NotificationsComponent, NotificationToastComponent, ProfileModalComponent, ChatComponent, ChatContactsComponent],
+  imports: [CommonModule, RouterModule, FormsModule, NotificationsComponent, ProfileModalComponent, ChatComponent, ChatContactsComponent, SilentNotificationComponent, LogoutPopupComponent],
   template: `
     <div class="dashboard-container">
-      <app-notifications [isVisible]="showNotifications"></app-notifications>
-      <app-notification-toast></app-notification-toast>
+      <app-notifications [isVisible]="showNotifications" (closed)="showNotifications = false"></app-notifications>
       <nav class="navbar">
         <div class="nav-brand">
           <h1>Gestion Clinique</h1>
@@ -209,6 +210,15 @@ import { ChatContactsComponent } from '../shared/chat-contacts.component';
         [otherUser]="selectedChatUser"
         (closed)="showChat = false">
       </app-chat>
+      
+      <app-silent-notification></app-silent-notification>
+      
+      <app-logout-popup
+        [isVisible]="showLogoutPopup"
+        [title]="logoutPopupTitle"
+        [message]="logoutPopupMessage"
+        (closed)="showLogoutPopup = false">
+      </app-logout-popup>
     </div>
   `,
   styles: [`
@@ -304,6 +314,9 @@ export class MedecinDashboardComponent implements OnInit {
   selectedChatUser: any = null;
   totalUnreadMessages = 0;
   showProfileModal = false;
+  showLogoutPopup = false;
+  logoutPopupTitle = '';
+  logoutPopupMessage = '';
   revenuAnnuel = 0;
   revenuMensuel = 0;
   selectedYear = new Date().getFullYear();
@@ -343,6 +356,8 @@ export class MedecinDashboardComponent implements OnInit {
           this.loadRevenuAnnuel();
           this.loadRevenuMensuel();
         }
+        // Ajouter quelques notifications de test
+        this.addTestNotifications();
       }
     });
   }
@@ -354,13 +369,19 @@ export class MedecinDashboardComponent implements OnInit {
           console.log('Stats médecin reçues:', stats);
           this.stats = stats;
         },
-        error: () => this.stats = { mesPatients: 0, rdvAujourdhui: 0, rdvEnAttente: 0 }
+        error: (error) => {
+          console.warn('Erreur chargement stats médecin:', error);
+          this.stats = { mesPatients: 0, rdvAujourdhui: 0, rdvEnAttente: 0 };
+        }
       });
     }
 
     this.dashboardService.getRecentRendezVous().subscribe({
       next: rdv => this.todayAppointments = rdv,
-      error: () => this.todayAppointments = []
+      error: (error) => {
+        console.warn('Erreur chargement RDV récents:', error);
+        this.todayAppointments = [];
+      }
     });
   }
 
@@ -370,7 +391,8 @@ export class MedecinDashboardComponent implements OnInit {
         this.revenuAnnuel = data.revenuAnnuel;
       },
       error: (error) => {
-        console.error('Erreur chargement revenus:', error);
+        console.warn('Erreur chargement revenus annuels:', error);
+        this.revenuAnnuel = 0;
       }
     });
   }
@@ -381,7 +403,8 @@ export class MedecinDashboardComponent implements OnInit {
         this.revenuMensuel = data.revenuMensuel;
       },
       error: (error) => {
-        console.error('Erreur chargement revenus mensuels:', error);
+        console.warn('Erreur chargement revenus mensuels:', error);
+        this.revenuMensuel = 0;
       }
     });
   }
@@ -432,12 +455,24 @@ export class MedecinDashboardComponent implements OnInit {
 
   subscribeToNotifications(): void {
     this.notificationService.notifications$.subscribe(notifications => {
-      this.notificationCount = notifications.length;
+      this.notificationCount = notifications.filter(n => !n.read).length;
     });
   }
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
+    // Marquer les notifications comme lues quand on ouvre le panel
+    if (this.showNotifications) {
+      setTimeout(() => {
+        this.notificationService.notifications$.subscribe(notifications => {
+          notifications.forEach(n => {
+            if (!n.read) {
+              this.notificationService.markAsRead(n.id);
+            }
+          });
+        });
+      }, 1000);
+    }
   }
 
   toggleChat(): void {
@@ -466,12 +501,20 @@ export class MedecinDashboardComponent implements OnInit {
     }
   }
 
+  addTestNotifications(): void {
+    // Notifications de test désactivées pour éviter l'affichage toast
+  }
+
   logout(): void {
     this.notificationService.disconnectWebSocket();
     this.authService.logout().subscribe({
       next: () => {
-        this.notificationService.success('Déconnexion', 'À bientôt !');
-        this.router.navigate(['/login']);
+        this.showLogoutPopup = true;
+        this.logoutPopupTitle = 'Déconnexion';
+        this.logoutPopupMessage = 'À bientôt !';
+        setTimeout(() => {
+          this.router.navigate(['/login']);
+        }, 2000);
       },
       error: () => {
         localStorage.removeItem('token');

@@ -7,7 +7,7 @@ import { NotificationService, Notification } from '../../services/notification.s
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="notification-container">
+    <div class="notification-container" style="display: none;">
       <div *ngFor="let notification of notifications" 
            class="notification-toast" 
            [class]="'toast-' + notification.type"
@@ -34,15 +34,24 @@ import { NotificationService, Notification } from '../../services/notification.s
       top: 20px;
       right: 20px;
       z-index: 9999;
-      max-width: 400px;
+      max-width: 350px;
+      max-height: 80vh;
+      overflow: hidden;
     }
 
     .notification-toast {
-      margin-bottom: 10px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      margin-bottom: 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       overflow: hidden;
       animation: slideIn 0.3s ease-out;
+      max-height: 80px;
+      transition: all 0.3s ease;
+    }
+
+    .notification-toast:hover {
+      transform: translateX(-5px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
 
     @keyframes slideIn {
@@ -59,7 +68,7 @@ import { NotificationService, Notification } from '../../services/notification.s
     .toast-content {
       display: flex;
       align-items: flex-start;
-      padding: 16px;
+      padding: 12px;
       background: white;
     }
 
@@ -80,9 +89,14 @@ import { NotificationService, Notification } from '../../services/notification.s
     }
 
     .toast-message {
-      font-size: 14px;
+      font-size: 13px;
       color: #666;
-      line-height: 1.4;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
 
     .toast-close {
@@ -123,9 +137,8 @@ export class NotificationToastComponent implements OnInit {
   constructor(private notificationService: NotificationService) {}
 
   ngOnInit(): void {
-    this.notificationService.notifications$.subscribe(notifications => {
-      this.notifications = notifications;
-    });
+    // Désactiver l'affichage des toasts
+    this.notifications = [];
   }
 
   removeNotification(id: string): void {

@@ -5,6 +5,7 @@ import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { ProfileModalComponent } from '../shared/profile-modal.component';
 import { ConflictModalComponent } from '../shared/conflict-modal.component';
 import { CancelModalComponent } from '../shared/cancel-modal.component';
+import { RdvSuccessModalComponent } from '../shared/rdv-success-modal.component';
 import { RendezVousService } from '../../services/rendezvous.service';
 import { PatientService } from '../../services/patient.service';
 import { MedecinService } from '../../services/medecin.service';
@@ -15,7 +16,7 @@ import { User } from '../../models/auth.model';
 @Component({
   selector: 'app-secretaire-rendezvous',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, ProfileModalComponent, ConflictModalComponent, CancelModalComponent],
+  imports: [CommonModule, FormsModule, RouterModule, ProfileModalComponent, ConflictModalComponent, CancelModalComponent, RdvSuccessModalComponent],
   template: `
     <div class="dashboard-container">
       <nav class="navbar">
@@ -215,6 +216,12 @@ import { User } from '../../models/auth.model';
         (closed)="showCancelModal = false"
         (confirmed)="confirmCancelRendezVous($event)">
       </app-cancel-modal>
+      
+      <app-rdv-success-modal
+        [isVisible]="showSuccessModal"
+        [rdvDetails]="successRdvDetails"
+        (closed)="closeSuccessModal()">
+      </app-rdv-success-modal>
     </div>
   `,
   styles: [`
@@ -323,6 +330,8 @@ export class SecretaireRendezVousComponent implements OnInit {
   currentPage = 1;
   itemsPerPage = 10;
   totalPages = 0;
+  showSuccessModal = false;
+  successRdvDetails: any = null;
 
   constructor(
     private rendezVousService: RendezVousService,
@@ -479,9 +488,15 @@ export class SecretaireRendezVousComponent implements OnInit {
       this.rendezVousService.createRendezVous(rdvData).subscribe({
         next: (response) => {
           console.log('Rendez-vous créé avec succès:', response);
+          // Ajouter une notification
+          this.notificationService.addNotification('success', 'RDV Créé', 'Nouveau rendez-vous créé avec succès');
+          // S'assurer que les données sont disponibles avant d'afficher le modal
+          setTimeout(() => {
+            this.showSuccessModal = true;
+            this.successRdvDetails = this.buildRdvDetails();
+          }, 100);
           this.loadRendezVous();
           this.cancelEdit();
-          // Rendez-vous créé silencieusement
         },
         error: (error) => {
           console.error('Erreur lors de la création:', error);
@@ -631,6 +646,28 @@ export class SecretaireRendezVousComponent implements OnInit {
     const date = new Date();
     date.setMonth(date.getMonth() + 6);
     return date.toISOString().split('T')[0];
+  }
+
+  buildRdvDetails(): any {
+    const patientId = Number(this.currentRdv.patientId);
+    const medecinId = Number(this.currentRdv.medecinId);
+    
+    const patient = this.patients.find(p => p.id === patientId);
+    const medecin = this.medecins.find(m => m.id === medecinId);
+    const dateTime = new Date(`${this.currentRdv.date}T${this.currentRdv.heure}`);
+    
+    return {
+      patientNom: patient ? `${patient.prenom} ${patient.nom}` : 'N/A',
+      medecinNom: medecin ? `Dr. ${medecin.prenom} ${medecin.nom}` : 'N/A',
+      date: dateTime.toLocaleDateString('fr-FR'),
+      heure: dateTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      motif: this.currentRdv.motif
+    };
+  }
+
+  closeSuccessModal(): void {
+    this.showSuccessModal = false;
+    this.successRdvDetails = null;
   }
 
   logout(): void {
